@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FloorPlan AI</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+}
+
+header {
+    background: #1f2937;
+    color: white;
+    padding: 15px 30px;
+}
+
+header h1 { margin: 0; font-size: 22px; }
+header p { margin: 2px 0 0; font-size: 13px; color: #d1d5db; }
+
+.container {
+    display: flex;
+    height: calc(100vh - 70px);
+}
+
+.chat-panel {
+    width: 40%;
+    background: #111827;
+    color: white;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header { font-weight: bold; margin-bottom: 10px; }
+
+.chat-history {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    background: #1f2937;
+    border-radius: 6px;
+}
+
+.message {
+    margin-bottom: 10px;
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.message.bot { background: #374151; }
+.message.user { background: #2563eb; margin-left: auto; }
+
+.chat-input {
+    display: flex;
+    margin-top: 10px;
+    gap: 5px;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+}
+
+.chat-input button {
+    padding: 10px 15px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+.plan-panel {
+    width: 60%;
+    padding: 20px;
+    background: #0f172a;
+    color: #aaa;
+}
+
+.placeholder {
+    border: 2px dashed #555;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin: 10px;
+    justify-content: center;
+}
+
+.action-buttons button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    color: white;
+    cursor: pointer;
+}
+
+.action-buttons button:nth-child(1) { background: purple; }
+.action-buttons button:nth-child(2) { background: teal; }
+.action-buttons button:nth-child(3) { background: green; }
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>FloorPlan AI</h1>
+    <p>Design Your Dream Space</p>
+</header>
+
+<div class="container">
+
+<div class="chat-panel">
+    <div class="chat-header" id="stepHeader">Step 1 of 9</div>
+    <div class="chat-history" id="chatHistory"></div>
+
+    <div class="chat-input">
+        <input type="text" id="userInput" placeholder="Type your answer..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<div class="plan-panel">
+    <div class="placeholder" id="planPreview">
+        Floor plan preview will appear here
+    </div>
+</div>
+
+</div>
+
+<div class="action-buttons">
+    <button onclick="modifyPlan()">Modify</button>
+    <button onclick="savePlan()">Save</button>
+    <a href="/static/floorplan.png" download>
+        <button>Download</button>
+    </a>
+</div>
+
+<script>
+const questions = [
+    "What type of house do you want? (2BHK, 3BHK, Studio)",
+    "What is the total plot size? (e.g., 30x40 feet)",
+    "What shape do you prefer? (Square, Rectangular, L-shaped)",
+    "Enter bedroom sizes in order (e.g., 12x13, 11x12, 10x12)",
+    "How many ATTACHED bathrooms and which bedroom? (e.g., Bedroom 1 5x8)",
+    "How many COMMON (separate) bathrooms? (e.g., 1 common 5x7)",
+    "Kitchen details? (Open/Closed and size, e.g., closed 10x12)",
+    "Living & Dining details? (Combined/Separate and size, e.g., separate 12x14)",
+    "Any additional features? (Balcony, storage, stairs, etc.)"
+];
+
+let currentStep = 0;
+let answers = {};
+let awaitingConfirmation = false;
+
+const chatHistory = document.getElementById("chatHistory");
+const stepHeader = document.getElementById("stepHeader");
+const userInput = document.getElementById("userInput");
+
+function addBotMessage(text) {
+    const msg = document.createElement("div");
+    msg.className = "message bot";
+    msg.innerText = text;
+    chatHistory.appendChild(msg);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function addUserMessage(text) {
+    const msg = document.createElement("div");
+    msg.className = "message user";
+    msg.innerText = text;
+    chatHistory.appendChild(msg);
+}
+
+function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    addUserMessage(text);
+    userInput.value = "";
+
+    if (awaitingConfirmation) {
+        if (text.toLowerCase() === "yes") {
+            addBotMessage("Great! Generating your floor plan now...");
+            stepHeader.innerText = "Generating Floor Plan";
+            userInput.disabled = true;
+
+            fetch("/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(answers)
+            })
+            .then(res => res.json())
+            .then(data => showFloorPlan(data.image_url))
+            .catch(() => addBotMessage("Error generating floor plan."));
+        }
+        else if (text.toLowerCase() === "no") {
+            addBotMessage("Okay. You can refresh and start again.");
+        }
+        else {
+            addBotMessage("Please reply with Yes or No.");
+        }
+        return;
+    }
+
+    answers[`step_${currentStep + 1}`] = text;
+    currentStep++;
+
+    if (currentStep < questions.length) {
+        stepHeader.innerText = `Step ${currentStep + 1} of 9`;
+        addBotMessage(questions[currentStep]);
+    } else {
+        showSummary();
+    }
+}
+
+function showSummary() {
+    stepHeader.innerText = "Summary";
+    addBotMessage("Here is a summary of your requirements:");
+    questions.forEach((q, i) => {
+        addBotMessage(`${i + 1}. ${q} → ${answers[`step_${i + 1}`]}`);
+    });
+    addBotMessage("Shall I generate the floor plan? (Yes / No)");
+    awaitingConfirmation = true;
+}
+
+function showFloorPlan(imageUrl) {
+    document.getElementById("planPreview").innerHTML =
+        `<img src="${imageUrl}" style="max-width:100%; border:2px solid #555;">`;
+}
+
+function modifyPlan() {
+    alert("Modify mode will be enabled in the next phase.");
+}
+
+function savePlan() {
+    alert("Floor plan saved successfully.");
+}
+
+addBotMessage(questions[0]);
+</script>
+
+</body>
+</html>
