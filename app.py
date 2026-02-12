@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, Response, jsonify
+import os
 
 from chatbot.step_parser import parse_chatbot_steps
 from core.normalizer import normalize
@@ -26,6 +27,14 @@ def generate():
 
         layout, pw, ph, margin, door = generate_layout(structured_data)
         svg = render_svg(layout, pw, ph, margin, door)
+
+        # ✅ Ensure static folder exists
+        os.makedirs("static", exist_ok=True)
+
+        # ✅ Save SVG to static folder
+        file_path = os.path.join("static", "floorplan.svg")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(svg)
 
         return Response(svg, mimetype="image/svg+xml")
 
