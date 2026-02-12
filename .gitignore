@@ -1,5 +1,16 @@
+# Virtual environment
 venv/
+
+# Python cache
 __pycache__/
 *.pyc
+
+# Environment variables
 .env
+
+# Node modules (if any frontend tools used)
 node_modules/
+
+# Generated floorplan files
+static/floorplan.svg
+static/floorplan.png
