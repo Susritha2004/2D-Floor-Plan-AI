@@ -1,6 +1,10 @@
-from flask import Flask, render_template, request, jsonify
-from layout.parser import parse_chatbot_data
-from render.draw_floorplan import draw_floorplan
+from flask import Flask, render_template, request, Response, jsonify
+
+from chatbot.step_parser import parse_chatbot_steps
+from core.normalizer import normalize
+from core.validator import validate
+from layout.layout_engine import generate_layout
+from render.svg_renderer import render_svg
 
 app = Flask(__name__)
 
@@ -10,16 +14,24 @@ def home():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    raw_data = request.json
-    structured_data = parse_chatbot_data(raw_data)
+    try:
+        raw_data = request.get_json(silent=True)
 
-    draw_floorplan(structured_data)
+        if not raw_data:
+            return jsonify({"status": "error", "message": "Invalid input"}), 400
 
-    return jsonify({
-        "status": "success",
-        "image_url": "/static/floorplan.png",
-        "structured_data": structured_data
-    })
+        structured_data = parse_chatbot_steps(raw_data)
+        structured_data = normalize(structured_data)
+        validate(structured_data)
+
+        layout, pw, ph, margin, door = generate_layout(structured_data)
+        svg = render_svg(layout, pw, ph, margin, door)
+
+        return Response(svg, mimetype="image/svg+xml")
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)

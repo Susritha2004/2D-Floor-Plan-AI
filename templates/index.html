@@ -79,6 +79,7 @@ header p { margin: 2px 0 0; font-size: 13px; color: #d1d5db; }
     padding: 20px;
     background: #0f172a;
     color: #aaa;
+    overflow: auto;
 }
 
 .placeholder {
@@ -140,15 +141,14 @@ header p { margin: 2px 0 0; font-size: 13px; color: #d1d5db; }
 <div class="action-buttons">
     <button onclick="modifyPlan()">Modify</button>
     <button onclick="savePlan()">Save</button>
-    <a href="/static/floorplan.png" download>
-        <button>Download</button>
-    </a>
+    <button onclick="downloadSVG()">Download</button>
 </div>
 
 <script>
 const questions = [
     "What type of house do you want? (2BHK, 3BHK, Studio)",
     "What is the total plot size? (e.g., 30x40 feet)",
+    "What is the plot facing direction? (North, South, East, West)",
     "What shape do you prefer? (Square, Rectangular, L-shaped)",
     "Enter bedroom sizes in order (e.g., 12x13, 11x12, 10x12)",
     "How many ATTACHED bathrooms and which bedroom? (e.g., Bedroom 1 5x8)",
@@ -158,6 +158,7 @@ const questions = [
     "Any additional features? (Balcony, storage, stairs, etc.)"
 ];
 
+
 let currentStep = 0;
 let answers = {};
 let awaitingConfirmation = false;
@@ -165,6 +166,11 @@ let awaitingConfirmation = false;
 const chatHistory = document.getElementById("chatHistory");
 const stepHeader = document.getElementById("stepHeader");
 const userInput = document.getElementById("userInput");
+userInput.addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+        sendMessage();
+    }
+});
 
 function addBotMessage(text) {
     const msg = document.createElement("div");
@@ -190,23 +196,10 @@ function sendMessage() {
 
     if (awaitingConfirmation) {
         if (text.toLowerCase() === "yes") {
-            addBotMessage("Great! Generating your floor plan now...");
-            stepHeader.innerText = "Generating Floor Plan";
-            userInput.disabled = true;
-
-            fetch("/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(answers)
-            })
-            .then(res => res.json())
-            .then(data => showFloorPlan(data.image_url))
-            .catch(() => addBotMessage("Error generating floor plan."));
-        }
-        else if (text.toLowerCase() === "no") {
+            generateFloorPlan();
+        } else if (text.toLowerCase() === "no") {
             addBotMessage("Okay. You can refresh and start again.");
-        }
-        else {
+        } else {
             addBotMessage("Please reply with Yes or No.");
         }
         return;
@@ -227,15 +220,52 @@ function showSummary() {
     stepHeader.innerText = "Summary";
     addBotMessage("Here is a summary of your requirements:");
     questions.forEach((q, i) => {
-        addBotMessage(`${i + 1}. ${q} → ${answers[`step_${i + 1}`]}`);
+        addBotMessage(`${i + 1}. ${answers[`step_${i + 1}`]}`);
     });
     addBotMessage("Shall I generate the floor plan? (Yes / No)");
     awaitingConfirmation = true;
 }
 
-function showFloorPlan(imageUrl) {
-    document.getElementById("planPreview").innerHTML =
-        `<img src="${imageUrl}" style="max-width:100%; border:2px solid #555;">`;
+function generateFloorPlan() {
+    addBotMessage("Generating your floor plan...");
+    userInput.disabled = true;
+
+    fetch("/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(answers)
+    })
+    .then(res => res.text())
+    .then(svg => {
+        document.getElementById("planPreview").innerHTML = svg;
+        addBotMessage("Floor plan generated successfully!");
+        userInput.disabled = false;   // 🔥 re-enable input
+    })
+    .catch(() => {
+        addBotMessage("Error generating floor plan.");
+        userInput.disabled = false;
+    });
+}
+
+
+function downloadSVG() {
+    const svgElement = document.querySelector("#planPreview svg");
+    if (!svgElement) {
+        alert("No floor plan generated yet.");
+        return;
+    }
+
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(svgElement);
+    const blob = new Blob([source], {type: "image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "floorplan.svg";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 function modifyPlan() {
