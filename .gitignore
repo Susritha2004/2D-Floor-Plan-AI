@@ -12,5 +12,5 @@ __pycache__/
 node_modules/
 
 # Generated floorplan files
-static/floorplan.svg
-static/floorplan.png
+floorplan.svg
+

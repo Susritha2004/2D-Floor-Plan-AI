@@ -163,6 +163,11 @@ let currentStep = 0;
 let answers = {};
 let awaitingConfirmation = false;
 
+// 🔥 Add here
+let modifyMode = false;
+let modifyStep = null;
+
+
 const chatHistory = document.getElementById("chatHistory");
 const stepHeader = document.getElementById("stepHeader");
 const userInput = document.getElementById("userInput");
@@ -188,28 +193,72 @@ function addUserMessage(text) {
 }
 
 function sendMessage() {
+
     const text = userInput.value.trim();
     if (!text) return;
 
     addUserMessage(text);
     userInput.value = "";
 
+    // =====================================
+    // 🔥 MODIFY MODE HANDLING
+    // =====================================
+    if (modifyMode) {
+
+        // Step selection
+        if (modifyStep === null) {
+
+            const stepNumber = parseInt(text);
+
+            if (!isNaN(stepNumber) && stepNumber >= 1 && stepNumber <= questions.length) {
+                modifyStep = stepNumber - 1;
+                addBotMessage(`Enter new answer for:\n${questions[modifyStep]}`);
+            } else {
+                addBotMessage("Invalid step number. Please enter a valid step (1-10).");
+            }
+
+            return;
+        }
+
+        // Updating selected step
+        answers[`step_${modifyStep + 1}`] = text;
+
+        addBotMessage("Answer updated successfully.");
+        addBotMessage("Regenerating floor plan...");
+
+        modifyMode = false;
+        modifyStep = null;
+        awaitingConfirmation = false;
+
+        generateFloorPlan();
+        return;
+    }
+
+    // =====================================
+    // 🔥 CONFIRMATION MODE
+    // =====================================
     if (awaitingConfirmation) {
+
         if (text.toLowerCase() === "yes") {
             generateFloorPlan();
         } else if (text.toLowerCase() === "no") {
-            addBotMessage("Okay. You can refresh and start again.");
+            addBotMessage("Okay. You can modify or refresh.");
         } else {
             addBotMessage("Please reply with Yes or No.");
         }
+
         return;
     }
+
+    // =====================================
+    // 🔥 NORMAL CHAT FLOW
+    // =====================================
 
     answers[`step_${currentStep + 1}`] = text;
     currentStep++;
 
     if (currentStep < questions.length) {
-        stepHeader.innerText = `Step ${currentStep + 1} of 9`;
+        stepHeader.innerText = `Step ${currentStep + 1} of ${questions.length}`;
         addBotMessage(questions[currentStep]);
     } else {
         showSummary();
@@ -269,8 +318,20 @@ function downloadSVG() {
 }
 
 function modifyPlan() {
-    alert("Modify mode will be enabled in the next phase.");
+
+    if (Object.keys(answers).length === 0) {
+        alert("No plan generated yet.");
+        return;
+    }
+
+    modifyMode = true;
+    modifyStep = null;
+
+    addBotMessage("Which step do you want to modify? (Enter step number 1-10)");
 }
+
+
+
 
 function savePlan() {
     alert("Floor plan saved successfully.");

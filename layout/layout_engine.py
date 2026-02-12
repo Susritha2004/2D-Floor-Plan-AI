@@ -1,6 +1,6 @@
 def generate_layout(data, scale=10, margin=60):
     plot_w, plot_h = data["plot_size"]
-    facing = data.get("facing", "north")
+    facing = data.get("facing", "north").lower()
 
     pw, ph = plot_w * scale, plot_h * scale
     layout = []
@@ -15,9 +15,20 @@ def generate_layout(data, scale=10, margin=60):
     BOTTOM_RIGHT = {"x": margin + half_w, "y": margin + half_h, "w": half_w, "h": half_h}
 
     # =================================================
-    # Living → TOP RIGHT
+    # Living Position Based on Facing
     # =================================================
-    living = TOP_RIGHT
+    if facing == "north":
+        living = TOP_RIGHT
+        door = ("top", living["x"] + living["w"] // 2)
+    elif facing == "south":
+        living = BOTTOM_RIGHT
+        door = ("bottom", living["x"] + living["w"] // 2)
+    elif facing == "east":
+        living = TOP_RIGHT
+        door = ("right", living["y"] + living["h"] // 2)
+    else:  # west
+        living = TOP_LEFT
+        door = ("left", living["y"] + living["h"] // 2)
 
     layout.append({
         "name": "Living / Hall",
@@ -25,23 +36,22 @@ def generate_layout(data, scale=10, margin=60):
         **living
     })
 
-    # Door centered on living wall
+    # =================================================
+    # Kitchen Position (Vastu Logic)
+    # =================================================
     if facing == "north":
-        door = ("top", living["x"] + living["w"] // 2)
+        kitchen = BOTTOM_RIGHT
     elif facing == "south":
-        door = ("bottom", living["x"] + living["w"] // 2)
+        kitchen = TOP_RIGHT
     elif facing == "east":
-        door = ("right", living["y"] + living["h"] // 2)
-    else:
-        door = ("left", living["y"] + living["h"] // 2)
+        kitchen = BOTTOM_LEFT
+    else:  # west
+        kitchen = BOTTOM_RIGHT
 
-    # =================================================
-    # Kitchen → BOTTOM RIGHT
-    # =================================================
     layout.append({
         "name": "Kitchen",
         "color": "#1e5631",
-        **BOTTOM_RIGHT
+        **kitchen
     })
 
     # =================================================
@@ -170,8 +180,8 @@ def generate_layout(data, scale=10, margin=60):
         if "storage" in item.lower():
             layout.append({
                 "name": "Storage",
-                "x": BOTTOM_RIGHT["x"] + 15,
-                "y": BOTTOM_RIGHT["y"] + 15,
+                "x": kitchen["x"] + 15,
+                "y": kitchen["y"] + 15,
                 "w": 70,
                 "h": 70,
                 "color": "#444444"
